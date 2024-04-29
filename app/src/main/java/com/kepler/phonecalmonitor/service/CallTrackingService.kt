@@ -12,6 +12,12 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import com.kepler.phonecalmonitor.notification.NotificationsHelper
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class CallTrackingService : Service() {
 
@@ -28,6 +34,7 @@ class CallTrackingService : Service() {
         stopSelf()
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
         // Initialize TelephonyManager
@@ -54,38 +61,48 @@ class CallTrackingService : Service() {
 
                         Log.d("CallState", "CALL_STATE_IDLE $phoneNumber")
 
-                        if (isStateANdRinging){
-                            val projection = arrayOf(
-                                CallLog.Calls._ID,
-                                CallLog.Calls.NUMBER,
-                                CallLog.Calls.DATE,
-                                CallLog.Calls.DURATION
-                            )
-                            val selection = "${CallLog.Calls.NUMBER} = ?"
-                            val selectionArgs = arrayOf(phoneNumber)
-                            val sortOrder = "${CallLog.Calls.DATE} DESC"
+                        if (isStateANdRinging) {
+                            GlobalScope.launch {
+                                delay(500)
+                                println("Delayed function executed")
 
-                            contentResolver.query(
-                                CallLog.Calls.CONTENT_URI,
-                                projection,
-                                selection,
-                                selectionArgs,
-                                sortOrder
-                            )?.use { cursor ->
-                                if (cursor.moveToFirst()) {
-                                    val id = cursor.getLong(cursor.getColumnIndex(CallLog.Calls._ID))
-                                    val callNumber =
-                                        cursor.getString(cursor.getColumnIndex(CallLog.Calls.NUMBER))
-                                    val callDate = cursor.getLong(cursor.getColumnIndex(CallLog.Calls.DATE))
-                                    val callDuration =
-                                        cursor.getLong(cursor.getColumnIndex(CallLog.Calls.DURATION))
+                                val projection = arrayOf(
+                                    CallLog.Calls._ID,
+                                    CallLog.Calls.NUMBER,
+                                    CallLog.Calls.DATE,
+                                    CallLog.Calls.DURATION
+                                )
+                                val selection = "${CallLog.Calls.NUMBER} = ?"
+                                val selectionArgs = arrayOf(phoneNumber)
+                                val sortOrder = "${CallLog.Calls.DATE} DESC"
 
-                                    println("callLogDetails : id $id callNumber $callNumber callDate $callDate callDuration $callDuration")
-                                    // Use the call log details as needed
+                                contentResolver.query(
+                                    CallLog.Calls.CONTENT_URI,
+                                    projection,
+                                    selection,
+                                    selectionArgs,
+                                    sortOrder
+                                )?.use { cursor ->
+                                    if (cursor.moveToFirst()) {
+                                        val id =
+                                            cursor.getLong(cursor.getColumnIndex(CallLog.Calls._ID))
+                                        val callNumber =
+                                            cursor.getString(cursor.getColumnIndex(CallLog.Calls.NUMBER))
+                                        val callDate =
+                                            cursor.getLong(cursor.getColumnIndex(CallLog.Calls.DATE))
+                                        val callDuration =
+                                            cursor.getLong(cursor.getColumnIndex(CallLog.Calls.DURATION))
+
+                                        val date = Date(callDate)
+                                        val formatter = SimpleDateFormat("dd-MM-yyyy HH:mm")
+                                        val formattedDate = formatter.format(date)
+                                        println("callLogDetails : id $id callNumber $callNumber callDate $formattedDate callDuration $callDuration")
+                                        // Use the call log details as needed
+                                    }
                                 }
-                            }
 
-                           stopForegroundService()
+                                stopForegroundService()
+                            }
                         }
 
 
@@ -144,11 +161,14 @@ class CallTrackingService : Service() {
                     0
                 }
             )
-        }catch (e:Exception) {
+        } catch (e: Exception) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 && e is ForegroundServiceStartNotAllowedException
             ) {
-                Log.d("ExceptionForgorund : "," App not in a valid state to start foreground service")
+                Log.d(
+                    "ExceptionForgorund : ",
+                    " App not in a valid state to start foreground service"
+                )
             }
         }
 
